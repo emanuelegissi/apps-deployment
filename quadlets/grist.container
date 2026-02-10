@@ -29,6 +29,7 @@ Environment=GRIST_TELEMETRY_LEVEL=off
 Environment=GRIST_MAX_UPLOAD_ATTACHMENT_MB=10
 Environment=GRIST_MAX_UPLOAD_IMPORT_MB=50
 Environment=GRIST_THROTTLE_CPU=true
+Environment=GRIST_WIDGET_LIST_URL="https://github.com/gristlabs/grist-widget/releases/download/latest/manifest.json"
 
 # Dex OIDC
 Environment=GRIST_OIDC_IDP_ISSUER="https://dex.${DOMAIN}/.well-known/openid-configuration"
@@ -38,6 +39,11 @@ Environment=GRIST_OIDC_IDP_SKIP_END_SESSION_ENDPOINT=true
 
 # Trust the custom LAN root CA used by Caddy
 Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Allow external connection with DNS
+DNS=1.1.1.1
+DNS=8.8.8.8
+DNSOption=ndots:0
 
 # Redis
 Environment=REDIS_URL="redis://:${DEFAULT_PASSWORD}@redis:6379/1"
