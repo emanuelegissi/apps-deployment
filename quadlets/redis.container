@@ -1,0 +1,23 @@
+[Unit]
+Description=Redis for Grist
+Wants=network-online.target
+After=network-online.target apps-network.service
+Requires=apps-network.service
+
+[Service]
+EnvironmentFile=%h/.config/apps-deployment/secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=redis
+Image=docker.io/redis:7-bookworm
+Network=apps
+Volume=%h/.config/apps-deployment/config/redis/redis.conf.sh:/etc/redis/redis.conf.sh:Z,ro
+Volume=%h/.local/share/apps-deployment/persist/redis:/data:Z
+Exec=sh -euc 'sh /etc/redis/redis.conf.sh | exec redis-server -'
+
+Environment=REDIS_LOGLEVEL="${REDIS_LOGLEVEL}"
+Environment=REDIS_AUTH="${DEFAULT_PASSWORD}"
+
+[Install]
+WantedBy=default.target
