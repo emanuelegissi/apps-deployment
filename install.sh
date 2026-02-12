@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# -----------------------------------------------------------------------------
+# apps-deployment install script
+#
 # Repository structure (git working tree):
 #
 #   apps-deployment/                 (REPO_DIR)
@@ -15,9 +16,6 @@ set -euo pipefail
 #     www-template/                  optional static website template files
 #
 # What this installer does (rootless; does NOT install Podman):
-#
-# - Enables linger for the current user so systemd --user units can start at boot
-#   without an interactive login.
 #
 # - Creates user-owned deployment directories:
 #     ~/.config/apps-deployment/               (BASE_CONFIG_DIR)
@@ -51,7 +49,9 @@ set -euo pipefail
 #
 # Re-running the installer is safe and re-links quadlets/config/tools;
 # it does not overwrite existing secrets.
-# -----------------------------------------------------------------------------
+# 
+# Run minio-init.sh tool to create the minio bucket.
+
 
 # Distribution
 APP_NAME="apps-deployment"
@@ -93,10 +93,12 @@ die()  { printf "\n\033[1;31m[err]\033[0m %s\n" "$*"; exit 1; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Missing command: $1"; }
 
 log "Check needed commands"
+need_cmd mkdir
+need_cmd ln
+need_cmd find
+need_cmd readlink
 need_cmd rsync
 need_cmd systemctl
-need_cmd ln
-need_cmd mkdir
 need_cmd chmod
 need_cmd podman
 
@@ -106,13 +108,6 @@ log "Check distribution"
 [[ -f "${SECRETS_TEMPLATE}" ]] || die "Missing secrets template: ${SECRETS_TEMPLATE}"
 [[ -d "${REPO_TOOLS_DIR}" ]]  || warn "Missing: ${REPO_TOOLS_DIR} (tools links will be skipped)"
 
-log "Enable linger (requires sudo)"
-if command -v sudo >/dev/null 2>&1; then
-  sudo loginctl enable-linger "${USER}" || warn "Could not enable linger. Try: sudo loginctl enable-linger ${USER}"
-else
-  warn "sudo not found; cannot enable linger automatically."
-fi
-
 log "Create base directories"
 mkdir -p "${BASE_CONFIG_DIR}" "${SECRETS_DIR}" "${QUADLET_USER_DIR}" "${BIN_DIR}" "${PERSIST_DIR}"
 
@@ -121,9 +116,19 @@ for d in "${PERSIST_SUBDIRS[@]}"; do
   mkdir -p "${PERSIST_DIR}/${d}"
 done
 
+log "Symlink convenience shortcut in home: ~/apps-persist -> ${PERSIST_DIR}"
+if [[ -e "${HOME}/apps-persist" && ! -L "${HOME}/apps-persist" ]]; then
+  warn "~/apps-persist exists and is not a symlink; not overwriting."
+else
+  ln -sfn "${PERSIST_DIR}" "${HOME}/apps-persist"
+fi
+
 log "Symlink config to repo (editable in git working tree)"
-rm -rf "${INSTALL_CONFIG_LINK}"
-ln -s "${REPO_CONFIG_DIR}" "${INSTALL_CONFIG_LINK}"
+if [[ -e "${INSTALL_CONFIG_LINK}" && ! -L "${INSTALL_CONFIG_LINK}" ]]; then
+  warn "${INSTALL_CONFIG_LINK} exists and is not a symlink; not overwriting."
+else
+  ln -sfn "${REPO_CONFIG_DIR}" "${INSTALL_CONFIG_LINK}"
+fi
 
 log "Install secrets env file from template (create if missing)"
 if [[ ! -f "${SECRETS_FILE}" ]]; then
@@ -131,12 +136,26 @@ if [[ ! -f "${SECRETS_FILE}" ]]; then
 fi
 chmod 600 "${SECRETS_FILE}"
 
+log "Symlink convenience shortcut in home: ~/apps-secrets -> ${SECRETS_FILE}"
+if [[ -e "${HOME}/apps-secrets" && ! -L "${HOME}/apps-secrets" ]]; then
+  warn "~/apps-secrets exists and is not a symlink; not overwriting."
+else
+  ln -sfn "${SECRETS_FILE}" "${HOME}/apps-secrets"
+fi
+
 log "Populate www from www-template"
 if [[ -d "${WWW_TEMPLATE_DIR}" ]]; then
   rsync -a --ignore-existing "${WWW_TEMPLATE_DIR}/." "${PERSIST_DIR}/www/"
 else
   warn "Missing: ${WWW_TEMPLATE_DIR} (skipping www population)"
 fi
+
+log "Remove stale quadlet symlinks from ${QUADLET_USER_DIR}"
+find "${QUADLET_USER_DIR}" -maxdepth 1 -type l \( \
+  -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.kube' \
+\) 2>/dev/null | while read -r l; do
+  [[ ! -e "$l" ]] && rm -f "$l"
+done
 
 log "Symlink quadlets into ${QUADLET_USER_DIR}"
 shopt -s nullglob
@@ -155,6 +174,7 @@ if [[ -d "${REPO_TOOLS_DIR}" ]]; then
   shopt -u nullglob
   for f in "${tool_files[@]}"; do
     [[ -f "$f" ]] || continue
+    [[ -x "$f" ]] || continue   # optional: only executables
     ln -sfn "$f" "${BIN_DIR}/$(basename "$f")"
   done
 fi
@@ -167,43 +187,25 @@ log "Done."
 cat <<EOF
 
 Configuration symlink:
-  ${INSTALL_CONFIG_LINK} -> ${REPO_CONFIG_DIR}
+  ${INSTALL_CONFIG_LINK}
 
-Secrets (copied once from template, chmod 600):
-  ${SECRETS_TEMPLATE} -> ${SECRETS_FILE}
+Secrets:
+  ${HOME}/apps-secrets -> ${SECRETS_FILE}
 
-Persistence directory:
-  ${PERSIST_DIR}
+Persistence directory and website:
+  ${HOME}/apps-persist -> ${PERSIST_DIR}
 
-Website (synced from template):
-  ${WWW_TEMPLATE_DIR}/. -> ${PERSIST_DIR}/www/
-
-Podman quadlets (symlinks):
+Podman quadlets:
   ${QUADLET_USER_DIR}
 
-Tools (symlinks):
-  ${BIN_DIR} -> ${REPO_TOOLS_DIR}
+Tools:
+  ${BIN_DIR}
 
-Start units:
-  systemctl --user start caddy.service dex.service grist.service minio.service n8n.service redis.service
+Enable linger for the current user so systemd --user units
+can start at boot without an interactive login with:
+  sudo loginctl enable-linger ${USER}
 
-Logs:
-  journalctl --user -f -u caddy.service -u dex.service -u grist.service -u minio.service -u n8n.service -u redis.service
-
-Logs:
-  journalctl --user -f -u caddy.service
-  journalctl --user -f -u grist.service
-
-Status:
-  systemctl --user status --no-pager apps.network caddy.service dex.service grist.service minio.service n8n.service redis.service
-
-Quick check-up:
-  systemctl --no-pager --user status apps-network n8n redis minio dex grist caddy
-  podman ps --format 'table {{.Names}}\t{{.Status}}\t{{.Networks}}\t{{.Ports}}'
-
-Check log:
-  systemctl --user restart dex
-  journalctl -u dex -n 80 --no-pager
+Run minio-init.sh tool to create the minio bucket,
+and activate minio for grist in its quadlet.
 
 EOF
-

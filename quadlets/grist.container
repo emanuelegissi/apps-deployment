@@ -1,11 +1,8 @@
 [Unit]
 Description=Grist
-#After=network-online.target apps-network.service redis.service minio.service dex.service
-#Wants=network-online.target apps-network.service redis.service minio.service dex.service
-#Requires=apps-network.service redis.service minio.service dex.service
-After=network-online.target apps-network.service dex.service
-Wants=network-online.target apps-network.service dex.service
-Requires=apps-network.service dex.service
+After=network-online.target apps-network.service dex.service redis.service minio.service minio-grist-bucket-init.service
+Wants=network-online.target apps-network.service dex.service redis.service minio.service minio-grist-bucket-init.service
+Requires=apps-network.service dex.service redis.service minio.service
 
 [Service]
 EnvironmentFile=%h/.config/apps-deployment/secrets/apps-secrets.env
@@ -39,6 +36,15 @@ Environment=GRIST_OIDC_IDP_SKIP_END_SESSION_ENDPOINT=true
 
 # Trust the custom LAN root CA used by Caddy
 Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Minio S3 bucket
+# create a versioned bucket with versioning enabled
+Environment=GRIST_DOCS_MINIO_BUCKET="${MINIO_DEFAULT_BUCKET}"
+Environment=GRIST_DOCS_MINIO_ENDPOINT="minio"
+Environment=GRIST_DOCS_MINIO_PORT=9000
+Environment=GRIST_DOCS_MINIO_USE_SSL=0
+Environment=GRIST_DOCS_MINIO_ACCESS_KEY="${ADMIN_EMAIL}"
+Environment=GRIST_DOCS_MINIO_SECRET_KEY="${DEFAULT_PASSWORD}"
 
 # Allow external connection with DNS
 DNS=1.1.1.1

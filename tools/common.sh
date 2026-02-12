@@ -6,11 +6,11 @@ NET_UNIT="apps-network.service"
 
 UNITS=(
   "caddy.service"
-  "dex.service"
-  "grist.service"
-  "minio.service"
   "n8n.service"
   "redis.service"
+  "minio.service"
+  "dex.service"
+  "grist.service"
 )
 
 # ---- Helpers ----
@@ -24,4 +24,10 @@ need_cmd journalctl
 
 sd() { systemctl --user "$@"; }
 jc() { journalctl --user "$@"; }
+
+# Print known units in a sensible order: network first, then containers
+units_ordered() {
+  printf '%s\n' "${NET_UNIT}"
+  printf '%s\n' "${UNITS[@]}"
+}
 
