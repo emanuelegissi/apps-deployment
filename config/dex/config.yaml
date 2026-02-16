@@ -27,9 +27,21 @@ staticClients:
     name: "Grist"
     secret: "{{ .Env.GRIST_OIDC_IDP_CLIENT_SECRET }}"
 
+{{ $test := .Env.DEX_ADMIN_ONLY }}
+{{ if eq $test "true" }}
 enablePasswordDB: true
 staticPasswords:
   - username: "admin"
     email: "{{ .Env.ADMIN_EMAIL }}"
     hash: "{{ .Env.DEFAULT_PASSWORD_HASH }}"
+{{ else }}
+connectors:
+- type: smtp
+  name: "{{ .Env.DEX_SMTP_NAME }}"
+  id: "{{ .Env.DEX_SMTP_ID }}"
+  config:
+    host: "{{ .Env.DEX_SMTP_HOST }}"
+    domain: "{{ .Env.DEX_SMTP_DOMAIN }}"
+    label: "{{ .Env.DEX_SMTP_LABEL }}"
+{{ end }}
 

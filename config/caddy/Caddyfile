@@ -1,3 +1,12 @@
+{
+  # Debug
+  # debug
+  # Log
+  log default {
+    format console
+    level {$CADDY_LOGLEVEL}
+  }
+}
 
 apps.{$DOMAIN} {
   tls internal
