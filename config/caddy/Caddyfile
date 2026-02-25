@@ -1,0 +1,41 @@
+{
+  # Debug
+  # debug
+  # Log
+  log default {
+    format console
+    level {$CADDY_LOGLEVEL}
+  }
+}
+
+apps.{$DOMAIN} {
+  tls internal
+  root * /srv
+  file_server
+}
+
+grist.{$DOMAIN} {
+  tls internal
+  reverse_proxy grist:8484
+}
+
+dex.{$DOMAIN} {
+  tls internal
+  reverse_proxy dex:5556
+}
+
+minio.{$DOMAIN} {
+  tls internal
+  reverse_proxy minio:9001
+}
+
+n8n.{$DOMAIN} {
+  tls internal
+
+  reverse_proxy n8n:5678 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote_host}
+  }
+}
+

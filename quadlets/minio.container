@@ -1,0 +1,23 @@
+[Unit]
+Description=MinIO (S3-compatible storage)
+After=network-online.target apps-network.service
+Wants=network-online.target
+Requires=apps-network.service
+
+[Service]
+EnvironmentFile=%h/apps-secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=minio
+Image=docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+Network=apps
+Volume=%h/apps-persist/minio:/data:Z
+# Console on 9001, S3 API on 9000 (internal in the apps network)
+Exec=minio server --address :9000 --console-address :9001 /data
+
+Environment=MINIO_ROOT_USER="${ADMIN_EMAIL}"
+Environment=MINIO_ROOT_PASSWORD="${DEFAULT_PASSWORD}"
+
+[Install]
+WantedBy=default.target

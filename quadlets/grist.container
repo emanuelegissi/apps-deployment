@@ -1,0 +1,67 @@
+[Unit]
+Description=Grist
+After=network-online.target apps-network.service dex.service redis.service minio.service minio-grist-bucket-init.service
+Wants=network-online.target apps-network.service dex.service redis.service minio.service minio-grist-bucket-init.service
+Requires=apps-network.service dex.service redis.service minio.service
+
+[Service]
+EnvironmentFile=%h/apps-secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=grist
+Image=docker.io/gristlabs/grist:1.7.10
+Network=apps
+Volume=%h/apps-config/grist:/config:ro,Z
+Volume=%h/apps-persist/grist:/persist:Z
+
+Environment=DEBUG="${GRIST_DEBUG}"
+Environment=HTTPS_PROXY="${HTTPS_PROXY}"
+
+Environment=APP_HOME_URL="https://grist.${DOMAIN}/"
+Environment=GRIST_HIDE_UI_ELEMENTS="helpCenter,billing,templates,multiSite,multiAccounts"
+Environment=GRIST_DEFAULT_EMAIL="${ADMIN_EMAIL}"
+Environment=GRIST_SINGLE_ORG="${GRIST_SINGLE_ORG}"
+Environment=GRIST_ORG_IN_PATH=false
+Environment=GRIST_FORCE_LOGIN=true
+Environment=GRIST_SESSION_SECRET="${GRIST_SESSION_SECRET}"
+Environment=GRIST_SANDBOX_FLAVOR=gvisor
+Environment=GRIST_PAGE_TITLE_SUFFIX="_blank"
+Environment=GRIST_TELEMETRY_LEVEL=off
+Environment=GRIST_MAX_UPLOAD_ATTACHMENT_MB=10
+Environment=GRIST_MAX_UPLOAD_IMPORT_MB=50
+Environment=GRIST_THROTTLE_CPU=true
+Environment=GRIST_WIDGET_LIST_URL="https://github.com/gristlabs/grist-widget/releases/download/latest/manifest.json"
+
+# Path to plugins, put custom widgets there
+# see: https://github.com/gristlabs/grist-core#plugins
+Environment=GRIST_USER_ROOT="/config/"
+
+# Dex OIDC
+Environment=GRIST_OIDC_IDP_ISSUER="https://dex.${DOMAIN}/.well-known/openid-configuration"
+Environment=GRIST_OIDC_IDP_CLIENT_ID="${GRIST_OIDC_IDP_CLIENT_ID}"
+Environment=GRIST_OIDC_IDP_CLIENT_SECRET="${GRIST_OIDC_IDP_CLIENT_SECRET}"
+Environment=GRIST_OIDC_IDP_SKIP_END_SESSION_ENDPOINT=true
+
+# Trust the custom LAN root CA used by Caddy
+Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Minio S3 bucket
+# create a versioned bucket with versioning enabled
+Environment=GRIST_DOCS_MINIO_BUCKET="${MINIO_DEFAULT_BUCKET}"
+Environment=GRIST_DOCS_MINIO_ENDPOINT="minio"
+Environment=GRIST_DOCS_MINIO_PORT=9000
+Environment=GRIST_DOCS_MINIO_USE_SSL=0
+Environment=GRIST_DOCS_MINIO_ACCESS_KEY="${ADMIN_EMAIL}"
+Environment=GRIST_DOCS_MINIO_SECRET_KEY="${DEFAULT_PASSWORD}"
+
+# Allow external connection with DNS
+DNS=1.1.1.1
+DNS=8.8.8.8
+DNSOption=ndots:0
+
+# Redis
+Environment=REDIS_URL="redis://:${DEFAULT_PASSWORD}@redis:6379/1"
+
+[Install]
+WantedBy=default.target

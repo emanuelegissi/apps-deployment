@@ -1,0 +1,25 @@
+[Unit]
+Description=Caddy reverse proxy (internal TLS)
+Wants=network-online.target
+After=network-online.target apps-network.service
+Requires=apps-network.service
+
+[Service]
+EnvironmentFile=%h/apps-secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=caddy
+Image=docker.io/caddy:2.8
+Network=apps
+PublishPort=80:80/tcp
+PublishPort=443:443/tcp
+Volume=%h/apps-config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=%h/apps-persist/caddy-data:/data:Z
+Volume=%h/apps-persist/caddy-state:/config:Z
+Volume=%h/apps-persist/www:/srv:ro,Z
+Environment=DOMAIN=${DOMAIN}
+Environment=CADDY_LOGLEVEL=${CADDY_LOGLEVEL}
+
+[Install]
+WantedBy=default.target

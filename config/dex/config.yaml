@@ -1,0 +1,47 @@
+issuer: "https://dex.{{ .Env.DOMAIN }}/"
+
+storage:
+  type: sqlite3
+  config:
+    file: /data/dex.db
+
+web:
+  http: "0.0.0.0:5556"
+
+logger:
+  level: "{{ .Env.DEX_LOGLEVEL }}"
+  format: "text"
+
+frontend:
+  issuer: "Welcome"
+  logoURL: "https://grist.{{ .Env.DOMAIN }}/v/unknown/ui-icons/Logo/GristLogo.svg"
+  theme: "light"
+
+oauth2:
+  skipApprovalScreen: true
+  alwaysShowLoginScreen: false
+
+staticClients:
+  - id: "{{ .Env.GRIST_OIDC_IDP_CLIENT_ID }}"
+    redirectURIs: ["https://grist.{{ .Env.DOMAIN }}/oauth2/callback"]
+    name: "Grist"
+    secret: "{{ .Env.GRIST_OIDC_IDP_CLIENT_SECRET }}"
+
+{{ $test := .Env.DEX_ADMIN_ONLY }}
+{{ if eq $test "true" }}
+enablePasswordDB: true
+staticPasswords:
+  - username: "admin"
+    email: "{{ .Env.ADMIN_EMAIL }}"
+    hash: "{{ .Env.DEFAULT_PASSWORD_HASH }}"
+{{ else }}
+connectors:
+- type: smtp
+  name: "{{ .Env.DEX_SMTP_NAME }}"
+  id: "{{ .Env.DEX_SMTP_ID }}"
+  config:
+    host: "{{ .Env.DEX_SMTP_HOST }}"
+    domain: "{{ .Env.DEX_SMTP_DOMAIN }}"
+    label: "{{ .Env.DEX_SMTP_LABEL }}"
+{{ end }}
+

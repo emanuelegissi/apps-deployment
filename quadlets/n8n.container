@@ -1,0 +1,30 @@
+[Unit]
+Description=n8n
+Wants=network-online.target apps-network.service
+After=network-online.target apps-network.service
+Requires=apps-network.service
+
+[Service]
+EnvironmentFile=%h/apps-secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=n8n
+Image=docker.io/n8nio/n8n:2.6.4
+Network=apps
+Volume=%h/apps-persist/n8n:/home/node/.n8n:Z,U
+
+Environment=N8N_HOST="n8n.${DOMAIN}"
+Environment=N8N_EDITOR_BASE_URL="https://n8n.${DOMAIN}/"
+Environment=N8N_LISTEN_ADDRESS=0.0.0.0
+Environment=N8N_PORT=5678
+Environment=N8N_PROTOCOL=https
+Environment=N8N_ENCRYPTION_KEY=CHANGE_ME_32+chars_random
+Environment=N8N_BASIC_AUTH_ACTIVE=true
+Environment=N8N_BASIC_AUTH_USER=admin
+Environment=N8N_BASIC_AUTH_PASSWORD=CHANGE_ME_n8n_password
+Environment=WEBHOOK_URL="https://n8n.${DOMAIN}/"
+Environment=N8N_PROXY_HOPS=1
+
+[Install]
+WantedBy=default.target

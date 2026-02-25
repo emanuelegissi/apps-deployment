@@ -1,0 +1,33 @@
+[Unit]
+Description=Dex OIDC provider
+After=network-online.target apps-network.service
+Wants=network-online.target
+Requires=apps-network.service
+
+[Service]
+EnvironmentFile=%h/apps-secrets/apps-secrets.env
+Restart=always
+
+[Container]
+ContainerName=dex
+Image=ghcr.io/ict-vvf-genova/dex-smtp:master
+Network=apps
+Volume=%h/apps-config/dex/config.yaml:/etc/dex/config.yaml:ro,Z
+Volume=%h/apps-persist/dex:/data:Z,U
+Exec=dex serve /etc/dex/config.yaml
+
+Environment=DOMAIN="${DOMAIN}"
+Environment=DEX_LOGLEVEL="${DEX_LOGLEVEL}"
+Environment=DEX_ADMIN_ONLY="${DEX_ADMIN_ONLY}"
+Environment=ADMIN_EMAIL="${ADMIN_EMAIL}"
+Environment=DEFAULT_PASSWORD_HASH="${DEFAULT_PASSWORD_HASH}"
+Environment=GRIST_OIDC_IDP_CLIENT_ID="${GRIST_OIDC_IDP_CLIENT_ID}"
+Environment=GRIST_OIDC_IDP_CLIENT_SECRET="${GRIST_OIDC_IDP_CLIENT_SECRET}"
+Environment=DEX_SMTP_NAME="${DEX_SMTP_NAME}"
+Environment=DEX_SMTP_ID="${DEX_SMTP_ID}"
+Environment=DEX_SMTP_HOST="${DEX_SMTP_HOST}"
+Environment=DEX_SMTP_DOMAIN="${DEX_SMTP_DOMAIN}"
+Environment=DEX_SMTP_LABEL="${DEX_SMTP_LABEL}"
+
+[Install]
+WantedBy=default.target
