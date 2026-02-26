@@ -33,6 +33,7 @@ n8n.{$DOMAIN} {
   tls internal
 
   reverse_proxy n8n:5678 {
+    header_up Host {host}
     header_up X-Forwarded-Proto {scheme}
     header_up X-Forwarded-Host {host}
     header_up X-Forwarded-For {remote_host}

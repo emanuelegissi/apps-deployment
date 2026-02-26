@@ -60,14 +60,14 @@ Install cockpit and some other tools:
 sudo -i
 rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils nss-tools rsync
 systemctl reboot
-systemctl enable --now cockpit.socket
-firewall-cmd --add-service=cockpit
-firewall-cmd --add-service=cockpit --permanent
 ```
 
-Clone the apps deployment repository locally:
+after the reboot, enable cockpit:
+
 ```bash
-git clone https://github.com/emanuelegissi/apps-deployment.git
+sudo systemctl enable --now cockpit.socket
+sudo firewall-cmd --add-service=cockpit
+sudo firewall-cmd --add-service=cockpit --permanent
 ```
 
 ## Choose a domain and ensure name resolution
@@ -78,6 +78,8 @@ Pick a local domain you control on your LAN, for example:
 
 You must ensure that the following names resolve to your server’s IP (eg. 192.168.2.200):
 `apps.<domain>`, `grist.<domain>`, `dex.<domain>`, `n8n.<domain>`, and `minio.<domain>`.
+
+Check with: `nslookup apps.<domain>`
 
 ### Option A — Preferred: configure LAN DNS
 
@@ -176,7 +178,6 @@ The local deployment directories are:
 ~/apps-secrets/
 ~/apps-persist/
 ~/.config/containers/systemd/
-~/.local/bin/
 
 ## Configure secrets
 
