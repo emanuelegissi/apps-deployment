@@ -16,8 +16,6 @@ Volume=%h/apps-config/grist:/config:ro,Z
 Volume=%h/apps-persist/grist:/persist:Z
 
 Environment=DEBUG="${GRIST_DEBUG}"
-Environment=HTTPS_PROXY="${HTTPS_PROXY}"
-
 Environment=APP_HOME_URL="https://grist.${DOMAIN}/"
 Environment=GRIST_HIDE_UI_ELEMENTS="helpCenter,billing,templates,multiSite,multiAccounts"
 Environment=GRIST_DEFAULT_EMAIL="${ADMIN_EMAIL}"
@@ -54,6 +52,11 @@ Environment=GRIST_DOCS_MINIO_PORT=9000
 Environment=GRIST_DOCS_MINIO_USE_SSL=0
 Environment=GRIST_DOCS_MINIO_ACCESS_KEY="${ADMIN_EMAIL}"
 Environment=GRIST_DOCS_MINIO_SECRET_KEY="${DEFAULT_PASSWORD}"
+
+# Proxy
+Environment=HTTP_PROXY="${HTTP_PROXY}"
+Environment=HTTPS_PROXY="${HTTPS_PROXY}"
+Environment=NO_PROXY="${NO_PROXY}"
 
 # Allow external connection with DNS
 DNS=1.1.1.1

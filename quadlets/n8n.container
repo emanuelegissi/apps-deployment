@@ -26,5 +26,9 @@ Environment=N8N_BASIC_AUTH_PASSWORD=CHANGE_ME_n8n_password
 Environment=WEBHOOK_URL="https://n8n.${DOMAIN}/"
 Environment=N8N_PROXY_HOPS=1
 
+Environment=HTTP_PROXY="${HTTP_PROXY}"
+Environment=HTTPS_PROXY="${HTTPS_PROXY}"
+Environment=NO_PROXY="${NO_PROXY}"
+
 [Install]
 WantedBy=default.target
