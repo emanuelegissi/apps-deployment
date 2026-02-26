@@ -19,7 +19,7 @@ Use Fedora IoT, and create the `admin` user.
 
 Copy your ssh public key for passwordless login into the `~/.ssh/authorized_keys` file.
 
-Set the proxy for the bash console:
+If your server is behind a proxy, set it for the bash console, encode the backslash with `%5c`:
 
 ```bash
 sudo -i
@@ -27,13 +27,15 @@ mkdir -p /etc/profile.d
 cat > /etc/profile.d/proxy.sh << EOF
 # Systemwide proxy
 export http_proxy="http://username:password@proxy.example.com:3128"
-export https_proxy="http://username:password@proxy.example.com:3128"
 export HTTP_PROXY="http://username:password@proxy.example.com:3128"
+export https_proxy="http://username:password@proxy.example.com:3128"
 export HTTPS_PROXY="http://username:password@proxy.example.com:3128"
+export no_proxy="localhost,127.0.0.1,local,example.com,*.local,*.example.com"
+export NO_PROXY="localhost,127.0.0.1,local,example.com,*.local,*.example.com"
 EOF
 ```
 
-Set the proxy for rpm-ostree upgrades:
+Set the proxy for the rpm-ostree upgrades:
 
 ```bash
 sudo -i
@@ -41,9 +43,11 @@ mkdir -p /etc/systemd/system/rpm-ostreed.service.d
 cat > /etc/systemd/system/rpm-ostreed.service.d/http-proxy.conf << EOF
 [Service]
 Environment="http_proxy=http://username:password@proxy.example.com:3128"
-Environment="https_proxy=http://username:password@proxy.example.com:3128"
 Environment="HTTP_PROXY=http://username:password@proxy.example.com:3128"
+Environment="https_proxy=http://username:password@proxy.example.com:3128"
 Environment="HTTPS_PROXY=http://username:password@proxy.example.com:3128"
+Environment="no_proxy=localhost,127.0.0.1,local,example.com,*.local,*.example.com"
+Environment="NO_PROXY=localhost,127.0.0.1,local,example.com,*.local,*.example.com"
 EOF
 systemctl daemon-reload
 systemctl restart rpm-ostreed.service
@@ -54,7 +58,7 @@ Install cockpit and some other tools:
 
 ```bash
 sudo -i
-rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils nss-tools
+rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils nss-tools rsync
 systemctl reboot
 systemctl enable --now cockpit.socket
 firewall-cmd --add-service=cockpit
@@ -153,6 +157,7 @@ podman pull docker.io/caddy:2.8
 podman pull docker.io/n8nio/n8n:2.6.4
 podman pull docker.io/redis:7-bookworm
 podman pull docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+podman pull docker.io/minio/mc:RELEASE.2025-07-21T05-28-08Z-cpuv1
 podman pull ghcr.io/ict-vvf-genova/dex-smtp:master
 podman pull docker.io/gristlabs/grist:1.7.10
 ```
@@ -178,7 +183,7 @@ The local deployment directories are:
 Edit the secrets file:
 
 ```bash
-nano ~/.config/apps-deployment/secrets/apps-secrets.env
+nano ~/apps-secrets/apps-secrets.env
 ```
 
 Set at least:
@@ -198,17 +203,17 @@ Keep this file **private**, the installer sets permissions to `0600`.
 Reboot the server to validate boot-time behavior (linger + user services):
 
 ```bash
-sudo sysctl reboot
+sudo systemctl reboot
 ```
 
-After reboot, you do **not** need to log in to start services if linger is enabled, but for the first verification it’s easiest to log in as the `admin` user.
+After reboot, you do not need to log in to start services if linger is enabled.
 
 ## Init minio bucket
 
-Run the `tools/minio-init.sh` script.
+Run the `~/apps-deployment/tools/apps-init-bucket.sh` script.
 
-The script is going to ask for the following variables from your `apps-secret.env` file:
-MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, MINIO_DEFAULT_BUCKET
+The script is going read the following variables from your `apps-secret.env` file:
+ADMIN_EMAIL, DEFAULT_PASSWORD, MINIO_DEFAULT_BUCKET
 
 ## Use the tools to manage quadlets
 
@@ -316,8 +321,6 @@ Service logs (systemd/journald):
 
 ```bash
 journalctl --user -u yourapp.service -b --no-pager -n 200
-# rootful:
-sudo journalctl -u yourapp.service -b --no-pager -n 200
 ```
 
 Also check status with full lines:
