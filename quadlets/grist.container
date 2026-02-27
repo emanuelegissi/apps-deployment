@@ -58,11 +58,6 @@ Environment=HTTP_PROXY="${HTTP_PROXY}"
 Environment=HTTPS_PROXY="${HTTPS_PROXY}"
 Environment=NO_PROXY="${NO_PROXY}"
 
-# Allow external connection with DNS
-DNS=1.1.1.1
-DNS=8.8.8.8
-DNSOption=ndots:0
-
 # Redis
 Environment=REDIS_URL="redis://:${DEFAULT_PASSWORD}@redis:6379/1"
 

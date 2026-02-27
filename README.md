@@ -30,8 +30,8 @@ export http_proxy="http://username:password@proxy.example.com:3128"
 export HTTP_PROXY="http://username:password@proxy.example.com:3128"
 export https_proxy="http://username:password@proxy.example.com:3128"
 export HTTPS_PROXY="http://username:password@proxy.example.com:3128"
-export no_proxy="localhost,127.0.0.1,local,example.com,*.local,*.example.com"
-export NO_PROXY="localhost,127.0.0.1,local,example.com,*.local,*.example.com"
+export no_proxy="localhost,127.0.0.1,apps,grist,dex,n8n,minio,local,example.com,*.local,*.example.com"
+export NO_PROXY="localhost,127.0.0.1,apps,grist,dex,n8n,minio,local,example.com,*.local,*.example.com"
 EOF
 ```
 
