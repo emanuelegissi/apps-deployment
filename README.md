@@ -17,40 +17,110 @@ This repository contains all the tools that you need.
 
 Use Fedora IoT, and create the `admin` user.
 
-Copy your ssh public key for passwordless login into the `~/.ssh/authorized_keys` file.
+After reboot, set the network connection.
+Get the network name with:
 
-If your server is behind a proxy, set it for the bash console, encode the backslash with `%5c`:
+```bash
+nmcli connection show
+```
+
+And set it with:
+
+```bash
+nmcli con mod "enps0n1" ipv4.addresses 192.168.2.200/16
+nmcli con mod "enps0n1" ipv4.gateway 192.168.0.1
+nmcli con mod "enps0n1" ipv4.dns "8.8.8.8,8.8.4.4"
+nmcli con mod "enps0n1" ipv4.method manual
+nmcli con mod "enps0n1" ipv6.method disabled
+```
+
+Pick a local domain you control on your LAN, for example:
+`example.com` (so you will use `apps.example.com`, `grist.example.com`, etc.) 
+
+You must ensure that the following names resolve to your server’s IP (eg. 192.168.2.200):
+`apps.example.com`, `grist.example.com`, `dex.example.com`, `n8n.example.com`, and `minio.example.com`.
+
+Check with: `nslookup apps.example.com`
+
+Create A/AAAA records pointing to the server IP for:
+`apps.example.com`, `grist.example.com`, `dex.example.com`, `n8n.example.com`, and `minio.example.com`.
+
+Then set the hostname of your server with:
+
+```bash
+sudo hostnamectl set-hostname apps
+```
+
+Now you can ssh into your server with:
+```bash
+ssh admin@apps.example.com
+```
+
+Copy your ssh public key for passwordless login into the `~/.ssh/authorized_keys` file:
+
+```bash
+mkdir .ssh
+vi .ssh/authorized_keys
+```
+
+If your server is behind a proxy, crete the `/etc/proxy.env` file
+If needed, encode the backslash in the username with `%5c`:
+
+```text
+http_proxy=http://username:password@proxy.example.com:3128
+HTTP_PROXY=http://username:password@proxy.example.com:3128
+https_proxy=http://username:password@proxy.example.com:3128
+HTTPS_PROXY=http://username:password@proxy.example.com:3128
+no_proxy=localhost,127.0.0.1,example.com,*.example.com
+NO_PROXY=localhost,127.0.0.1,example.com,*.example.com
+```
+
+Then call it from the systemd services that need it:
+
+```bash
+sudo -i
+
+# rpm-ostree upgrades
+mkdir -p /etc/systemd/system/rpm-ostreed.service.d
+cat > /etc/systemd/system/rpm-ostreed.service.d/99-proxy.conf << EOF
+[Service]
+EnvironmentFile=/etc/proxy.env
+EOF
+
+# rpm-ostree-countme service
+mkdir -p /etc/systemd/system/rpm-ostree-countme.service.d
+cat > /etc/systemd/system/rpm-ostree-countme.service.d/99-proxy.conf << EOF
+[Service]
+EnvironmentFile=/etc/proxy.env
+EOF
+
+# fwupd-refresh service
+mkdir -p /etc/systemd/system/fwupd-refresh.service.d
+cat > /etc/systemd/system/fwupd-refresh.service.d/99-proxy.conf << EOF
+[Service]
+EnvironmentFile=/etc/proxy.env
+EOF
+
+systemctl daemon-reload
+systemctl restart rpm-ostreed.service rpm-ostree-countme fwupd-refresh.service
+```
+
+and set it for the bash console, too:
 
 ```bash
 sudo -i
 mkdir -p /etc/profile.d
 cat > /etc/profile.d/proxy.sh << EOF
 # Systemwide proxy
-export http_proxy="http://username:password@proxy.example.com:3128"
-export HTTP_PROXY="http://username:password@proxy.example.com:3128"
-export https_proxy="http://username:password@proxy.example.com:3128"
-export HTTPS_PROXY="http://username:password@proxy.example.com:3128"
-export no_proxy="localhost,127.0.0.1,apps,grist,dex,n8n,minio,local,example.com,*.local,*.example.com"
-export NO_PROXY="localhost,127.0.0.1,apps,grist,dex,n8n,minio,local,example.com,*.local,*.example.com"
+set -a
+. /etc/proxy.env
+set +a
 EOF
 ```
 
-Set the proxy for the rpm-ostree upgrades:
+Upgrade the server now:
 
 ```bash
-sudo -i
-mkdir -p /etc/systemd/system/rpm-ostreed.service.d
-cat > /etc/systemd/system/rpm-ostreed.service.d/http-proxy.conf << EOF
-[Service]
-Environment="http_proxy=http://username:password@proxy.example.com:3128"
-Environment="HTTP_PROXY=http://username:password@proxy.example.com:3128"
-Environment="https_proxy=http://username:password@proxy.example.com:3128"
-Environment="HTTPS_PROXY=http://username:password@proxy.example.com:3128"
-Environment="no_proxy=localhost,127.0.0.1,local,example.com,*.local,*.example.com"
-Environment="NO_PROXY=localhost,127.0.0.1,local,example.com,*.local,*.example.com"
-EOF
-systemctl daemon-reload
-systemctl restart rpm-ostreed.service
 rpm-ostree upgrade
 ```
 
@@ -58,7 +128,7 @@ Install cockpit and some other tools:
 
 ```bash
 sudo -i
-rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils nss-tools rsync
+rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils rsync
 systemctl reboot
 ```
 
@@ -68,36 +138,6 @@ after the reboot, enable cockpit:
 sudo systemctl enable --now cockpit.socket
 sudo firewall-cmd --add-service=cockpit
 sudo firewall-cmd --add-service=cockpit --permanent
-```
-
-## Choose a domain and ensure name resolution
-
-Pick a local domain you control on your LAN, for example:
- `local` (so you will use `apps.local`, `grist.local`, etc.)
- or `example.com` (so you will use `apps.example.com`, `grist.example.com`, etc.) 
-
-You must ensure that the following names resolve to your server’s IP (eg. 192.168.2.200):
-`apps.<domain>`, `grist.<domain>`, `dex.<domain>`, `n8n.<domain>`, and `minio.<domain>`.
-
-Check with: `nslookup apps.<domain>`
-
-### Option A — Preferred: configure LAN DNS
-
-Create A/AAAA records pointing to the server IP for:
-`apps.<domain>`, `grist.<domain>`, `dex.<domain>`, `n8n.<domain>`, and `minio.<domain>`.
-
-### Option B — Quick test: edit `/etc/hosts`
-
-If you don’t have DNS yet, or for development purposes, add an entry on the server:
-
-```bash
-sudo nano /etc/hosts
-```
-
-Add the line:
-
-```text
-192.168.2.200   apps.local grist.local dex.local n8n.local minio.local
 ```
 
 ## Apply required sysctl settings
@@ -161,7 +201,7 @@ podman pull docker.io/redis:7-bookworm
 podman pull docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
 podman pull docker.io/minio/mc:RELEASE.2025-07-21T05-28-08Z-cpuv1
 podman pull ghcr.io/ict-vvf-genova/dex-smtp:master
-podman pull docker.io/gristlabs/grist:1.7.10
+podman pull docker.io/gristlabs/grist:1.7.11
 ```
 
 ## Install quadlets, config links, tools links, persist directories
@@ -190,10 +230,8 @@ nano ~/apps-secrets/apps-secrets.env
 Set at least:
 
 ```bash
-DOMAIN=local
+DOMAIN=example.com
 ```
-
-Use your chosen domain: `local`, `example.com`, etc.
 
 Adjust any other variables your quadlets require (OIDC, passwords, tokens, etc.).
 
@@ -207,7 +245,7 @@ Reboot the server to validate boot-time behavior (linger + user services):
 sudo systemctl reboot
 ```
 
-After reboot, you do not need to log in to start services if linger is enabled.
+After reboot, you do not need to log in to start services, because linger is enabled.
 
 ## Init minio bucket
 
@@ -215,6 +253,25 @@ Run the `~/apps-deployment/tools/apps-init-bucket.sh` script.
 
 The script is going read the following variables from your `apps-secret.env` file:
 ADMIN_EMAIL, DEFAULT_PASSWORD, MINIO_DEFAULT_BUCKET
+
+Reboot the server to check the services are ok:
+
+```bash
+sudo systemctl reboot
+```
+
+## Verify access
+
+From a client machine, open:
+
+* `https://apps.example.com`
+* `https://grist.example.com`
+* `https://dex.example.com`
+* `https://n8n.example.com`
+* `https://minio.example.com`
+
+> If you use Caddy internal/self-signed TLS, you may need to trust its root CA on your client devices
+> (depending on how your deployment is configured).
 
 ## Use the tools to manage quadlets
 
@@ -242,18 +299,6 @@ If you prefer viewing logs by unit (non-follow):
 ```bash
 apps-journal caddy.service
 ```
-
-## Verify access
-
-From a client machine (or from the server), open:
-
-* `https://apps.local`
-* `https://grist.local`
-* `https://dex.local`
-* `https://n8n.local`
-* `https://minio.local`
-
-> If you use Caddy internal/self-signed TLS, you may need to trust its root CA on your client devices (depending on how your deployment is configured).
 
 ## Troubleshooting quick tips
 
@@ -285,7 +330,7 @@ apps-restart
 * Test your webservers with:
 
 ```bash
-curl -k -svo /dev/null https://apps.local
+curl -k -svo /dev/null https://apps.example.com
 ```
 
 ## Debugging a service

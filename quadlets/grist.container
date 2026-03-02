@@ -5,12 +5,13 @@ Wants=network-online.target apps-network.service dex.service redis.service minio
 Requires=apps-network.service dex.service redis.service minio.service
 
 [Service]
+EnvironmentFile=/etc/proxy.env
 EnvironmentFile=%h/apps-secrets/apps-secrets.env
 Restart=always
 
 [Container]
 ContainerName=grist
-Image=docker.io/gristlabs/grist:1.7.10
+Image=docker.io/gristlabs/grist:1.7.11
 Network=apps
 Volume=%h/apps-config/grist:/config:ro,Z
 Volume=%h/apps-persist/grist:/persist:Z
@@ -22,6 +23,8 @@ Environment=GRIST_DEFAULT_EMAIL="${ADMIN_EMAIL}"
 Environment=GRIST_SINGLE_ORG="${GRIST_SINGLE_ORG}"
 Environment=GRIST_ORG_IN_PATH=false
 Environment=GRIST_FORCE_LOGIN=true
+Environment=GRIST_PERSONAL_ORGS=false
+Environment=GRIST_ORG_CREATION_ANYONE=false
 Environment=GRIST_SESSION_SECRET="${GRIST_SESSION_SECRET}"
 Environment=GRIST_SANDBOX_FLAVOR=gvisor
 Environment=GRIST_PAGE_TITLE_SUFFIX="_blank"
