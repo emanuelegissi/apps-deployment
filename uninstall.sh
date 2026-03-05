@@ -4,15 +4,16 @@ set -euo pipefail
 # apps-deployment uninstall script
 #
 # Default (non-destructive):
-#   - Removes symlinks that point into THIS repo:
+#   - Removes symlinks:
 #       ~/.config/containers/systemd/*.container|*.network|*.volume|*.kube
-#       ~/apps-config                     (if it points into this repo)
-#   - Keeps secrets + persist unless --purge is passed
+#       ~/apps-config
+#   - Keeps persist unless --purge is passed
 #
 # Destructive mode (--purge):
 #   - Also deletes:
-#       ~/apps-secrets
 #       ~/apps-persist
+#
+# Secrets are never deleted
 
 # Distribution
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -21,7 +22,6 @@ QUADLETS_DIR="${REPO_DIR}/quadlets"
 # Local install dirs
 CONFIG_DIR="${HOME}/apps-config"
 SECRETS_DIR="${HOME}/apps-secrets"
-SECRETS_FILE="${SECRETS_DIR}/apps-secrets.env"
 PERSIST_DIR="${HOME}/apps-persist"
 QUADLET_USER_DIR="${HOME}/.config/containers/systemd"
 
@@ -37,7 +37,7 @@ usage() {
   cat <<EOF
 Usage: $0 [--purge] [--force]
 
-  --purge           Remove secrets and persistence data too (DESTRUCTIVE)
+  --purge           Remove persistence data too (DESTRUCTIVE)
   --force           Do not prompt for confirmation
 
 Default behavior keeps secrets + persist (non-destructive).
@@ -58,7 +58,7 @@ confirm() {
   if [[ "$FORCE" -eq 1 ]]; then
     return 0
   fi
-  read -r -p "${msg} [y/N] " ans
+  read -r -p "${msg} [y/N] " ans </dev/tty
   [[ "${ans}" == "y" || "${ans}" == "Y" ]]
 }
 
@@ -69,53 +69,35 @@ need_cmd systemctl
 need_cmd readlink
 need_cmd mkdir
 need_cmd rm
-need_cmd rmdir
 
-# Remove quadlet symlinks in ~/.config/containers/systemd that point into THIS repo.
-# This avoids deleting other unrelated quadlets the user might have.
+log "Stopping quadlet services"
+systemctl --user stop '*.container' 2>/dev/null || true
 
-log "Removing quadlet symlinks pointing into this repo from: ${QUADLET_USER_DIR}"
-mkdir -p "${QUADLET_USER_DIR}"
-
-shopt -s nullglob
-for link in "${QUADLET_USER_DIR}"/*.container "${QUADLET_USER_DIR}"/*.network "${QUADLET_USER_DIR}"/*.volume "${QUADLET_USER_DIR}"/*.kube; do
-  [[ -L "$link" ]] || continue
-  target="$(readlink -f "$link" 2>/dev/null || true)"
-  if [[ -n "$target" && "$target" == "${REPO_DIR}/"* ]]; then
-    rm -f "$link"
-  fi
-done
-shopt -u nullglob
-
-# Remove config symlink if it points into THIS repo.
-
-log "Removing config symlink (only if it points into this repo)"
-if [[ -L "${CONFIG_DIR}" ]]; then
-  target="$(readlink -f "${CONFIG_DIR}" 2>/dev/null || true)"
-  if [[ -n "$target" && "$target" == "${REPO_DIR}/config/"* ]]; then
-    rm -f "${CONFIG_DIR}"
-  else
-    warn "Config link exists but does not point into this repo; leaving it: ${CONFIG_DIR}"
-  fi
+log "Removing quadlet symlinks: ${QUADLET_USER_DIR}"
+if [[ -d "${QUADLET_USER_DIR}" ]]; then
+  find "${QUADLET_USER_DIR}" -maxdepth 1 -type l \( \
+    -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.kube' \
+  \) -exec rm -f {} +
 fi
 
-# Reload systemd --user to drop generated units / reset failed state.
+log "Removing config symlink: ${CONFIG_DIR}"
+if [[ -L "${CONFIG_DIR}" ]]; then
+  rm -f "${CONFIG_DIR}"
+fi
 
 log "Reloading systemd --user"
 systemctl --user daemon-reload || true
 systemctl --user reset-failed || true
 
-# Optionally purge secrets + persist (DESTRUCTIVE).
-
 if [[ "$PURGE" -eq 1 ]]; then
-  warn "PURGE enabled: secrets and persistence data will be deleted."
-  if confirm "Proceed with deleting ${SECRETS_DIR} and ${PERSIST_DIR}?"; then
-    sudo rm -rf "${SECRETS_DIR}" "${PERSIST_DIR}"
+  warn "PURGE enabled: persistence data will be deleted."
+  if confirm "Proceed with deleting ${PERSIST_DIR}?"; then
+    sudo rm -rf "${PERSIST_DIR}"
   else
-    warn "Purge cancelled; leaving secrets and persistence data intact."
+    warn "Purge cancelled; leaving persistence data intact."
   fi
 else
-  log "Keeping secrets and persistence data (use --purge to remove)."
+  log "Keeping persistence data (use --purge to remove)."
 fi
 
 log "Clean complete."
@@ -124,9 +106,6 @@ cat <<EOF
 Remaining (if any):
   Secrets:    ${SECRETS_DIR}      $( [[ -d "${SECRETS_DIR}" ]] && echo "(kept)" || echo "(removed)" )
   Persist:    ${PERSIST_DIR}      $( [[ -d "${PERSIST_DIR}" ]] && echo "(kept)" || echo "(removed)" )
-
-Quadlet dir:
-  ${QUADLET_USER_DIR}
 
 EOF
 

@@ -12,11 +12,13 @@ MINIO_ROOT_USER="${ADMIN_EMAIL}"
 MINIO_ROOT_PASSWORD="${DEFAULT_PASSWORD}"
 MINIO_DEFAULT_BUCKET="${MINIO_DEFAULT_BUCKET}" 
 
+# First run, create bucket 
 podman run --rm --network "container:minio" \
   -e "MC_HOST_myminio=http://${ADMIN_EMAIL}:${DEFAULT_PASSWORD}@127.0.0.1:9000" \
   "$MC_IMAGE" \
   mb myminio/$MINIO_DEFAULT_BUCKET 2>/dev/null || true
 
+# Second run, enable versioning
 podman run --rm --network "container:minio" \
   -e "MC_HOST_myminio=http://${ADMIN_EMAIL}:${DEFAULT_PASSWORD}@127.0.0.1:9000" \
   "$MC_IMAGE" \

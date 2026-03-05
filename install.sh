@@ -26,29 +26,8 @@ set -euo pipefail
 #         n8n/                          n8n data
 #         redis/                        redis data
 #         www/                          static website
-#       .config/containers/systemd/  sym links to quadlets
+#     ~/.config/containers/systemd/  sym links to quadlets
 #
-# After creating the dirs, this installer:
-#
-# - creates the secrets env file once by copying from the repo template (if missing):
-#     ~/apps-secrets/apps-secrets.env
-#   and enforces permissions: chmod 600.
-#   The secrets file is intentionally NOT a symlink so it remains host-specific
-#   and stays untracked by git.
-#
-# - optionally populates the website persistence directory from www-template:
-#     rsync <REPO_DIR>/www-template/.  ->  ~/apps-persist/www/
-#
-# - creates symlinks for all quadlet unit files into:
-#     ~/.config/containers/systemd/
-#   so editing quadlets in the repo updates the deployed units immediately.
-#   Then runs: systemctl --user daemon-reload
-#
-# Re-running the installer is safe and re-links quadlets, and config;
-# it does not overwrite existing secrets.
-# 
-# After installing, run minio-init.sh tool to create the minio bucket.
-
 
 # Distribution
 REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -130,7 +109,7 @@ find "${QUADLET_USER_DIR}" -maxdepth 1 -type l \( \
   [[ ! -e "$l" ]] && rm -f "$l"
 done
 
-log "Symlink quadlets into ${QUADLET_USER_DIR}"
+log "Install quadlets symlinks into ${QUADLET_USER_DIR}"
 shopt -s nullglob
 quadlet_files=( "${QUADLETS_DIR}"/*.container "${QUADLETS_DIR}"/*.network "${QUADLETS_DIR}"/*.volume "${QUADLETS_DIR}"/*.kube )
 shopt -u nullglob
@@ -152,11 +131,5 @@ Secrets: ${SECRETS_DIR}
 Persistence: ${PERSIST_DIR}
 Podman quadlets: ${QUADLET_USER_DIR}
 
-Enable linger for the current user so systemd --user units
-can start at boot without an interactive login with:
-  sudo loginctl enable-linger ${USER}
-
-Run minio-init.sh tool to create the minio bucket,
-and activate minio for grist in its quadlet.
-
+Run apps-init-bucket.sh tool to create the minio bucket.
 EOF
