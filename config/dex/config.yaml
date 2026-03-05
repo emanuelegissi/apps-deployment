@@ -42,6 +42,6 @@ connectors:
   config:
     host: "{{ .Env.DEX_SMTP_HOST }}"
     domain: "{{ .Env.DEX_SMTP_DOMAIN }}"
-    label: "{{ .Env.DEX_SMTP_LABEL }}"
+    label: "Username"
 {{ end }}
 

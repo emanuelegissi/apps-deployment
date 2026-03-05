@@ -27,7 +27,6 @@ Environment=DEX_SMTP_NAME="${DEX_SMTP_NAME}"
 Environment=DEX_SMTP_ID="${DEX_SMTP_ID}"
 Environment=DEX_SMTP_HOST="${DEX_SMTP_HOST}"
 Environment=DEX_SMTP_DOMAIN="${DEX_SMTP_DOMAIN}"
-Environment=DEX_SMTP_LABEL="${DEX_SMTP_LABEL}"
 
 [Install]
 WantedBy=default.target

@@ -1,48 +1,61 @@
 # apps-deployment
 
-This guide explains how to install **Caddy, Dex, Grist, MinIO, n8n, Redis** as **rootless Podman Quadlets**
-on a freshly installed server.
+This guide explains how to install Caddy, Dex, Grist, MinIO, n8n, Redis
+as rootless Podman Quadlets on a freshly installed server with [Linux Fedora IoT](https://fedoraproject.org/en/iot/).
 
 It assumes:
 
 * You have **sudo** access.
-* The server is on a **LAN**: no public internet exposure required, but it does need to pull images at install time.
+* The server is on a LAN with no public internet exposure.
 * You will run everything as a **dedicated non-root user** named `admin`.
 
-This repository contains all the tools that you need.
+This repository should contain all the tools that you need for the installation.
 
 ---
 
 ## Install your server
 
-Use Fedora IoT, and create the `admin` user.
+Download and install [Linux Fedora IoT](https://fedoraproject.org/en/iot/).
 
-After reboot, set the network connection.
-Get the network name with:
+While installing, create the `admin` user with administrative privileges. No need to setup the network, we can do that later.
+
+## Setup the network interface
+
+After rebooting your new server, set the network connection.
+
+Get the network interface name with:
 
 ```bash
-nmcli connection show
+nmcli con show
 ```
 
-And set it with:
+Let's suppose it is `ens0n1`, set the ip static address with:
 
 ```bash
-nmcli con mod "enps0n1" ipv4.addresses 192.168.2.200/16
-nmcli con mod "enps0n1" ipv4.gateway 192.168.0.1
-nmcli con mod "enps0n1" ipv4.dns "8.8.8.8,8.8.4.4"
-nmcli con mod "enps0n1" ipv4.method manual
-nmcli con mod "enps0n1" ipv6.method disabled
+nmcli con mod "ens0n1" ipv4.addresses 192.168.2.200/16
+nmcli con mod "ens0n1" ipv4.gateway 192.168.0.1
+nmcli con mod "ens0n1" ipv4.dns "8.8.8.8,8.8.4.4"
+nmcli con mod "ens0n1" ipv4.method manual
+nmcli con mod "ens0n1" ipv6.method disabled
+nmcli con down "ens0n1"
+nmcli con up "ens0n1"
 ```
+
+## Set the DNS and the hostname
 
 Pick a local domain you control on your LAN, for example:
-`example.com` (so you will use `apps.example.com`, `grist.example.com`, etc.) 
+`example.com` (so you will use `apps.example.com`, `grist.example.com`, ...) 
 
 You must ensure that the following names resolve to your server’s IP (eg. 192.168.2.200):
 `apps.example.com`, `grist.example.com`, `dex.example.com`, `n8n.example.com`, and `minio.example.com`.
 
-Check with: `nslookup apps.example.com`
+Check the correct resolution with:
 
-Create A/AAAA records pointing to the server IP for:
+```bash
+nslookup apps.example.com
+```
+
+In your DNS configuration, create A/AAAA records pointing to the server IP for:
 `apps.example.com`, `grist.example.com`, `dex.example.com`, `n8n.example.com`, and `minio.example.com`.
 
 Then set the hostname of your server with:
@@ -51,50 +64,53 @@ Then set the hostname of your server with:
 sudo hostnamectl set-hostname apps
 ```
 
-Now you can ssh into your server with:
+## Passwordless ssh
+
+Now, you should be able to ssh into your server with:
+
 ```bash
 ssh admin@apps.example.com
 ```
 
-Copy your ssh public key for passwordless login into the `~/.ssh/authorized_keys` file:
+If you desire passwordless login,
+copy your ssh public key into the `~/.ssh/authorized_keys` file:
 
 ```bash
 mkdir .ssh
 vi .ssh/authorized_keys
 ```
 
+## Set the network proxy
+
 If your server is behind a proxy, crete the `/etc/proxy.env` file
-If needed, encode the backslash in the username with `%5c`:
+If needed, encode the backslash with `%5c`:
 
 ```text
 http_proxy=http://username:password@proxy.example.com:3128
 HTTP_PROXY=http://username:password@proxy.example.com:3128
 https_proxy=http://username:password@proxy.example.com:3128
 HTTPS_PROXY=http://username:password@proxy.example.com:3128
-no_proxy=localhost,127.0.0.1,example.com,*.example.com
-NO_PROXY=localhost,127.0.0.1,example.com,*.example.com
+no_proxy=localhost,127.0.0.1,apps,n8n,minio,dex,grist,example.com,*.example.com
+NO_PROXY=localhost,127.0.0.1,apps,n8n,minio,dex,grist,example.com,*.example.com
 ```
 
-Then call it from the systemd services that need it:
+This configuration should be called from the systemd services that need it:
 
 ```bash
 sudo -i
 
-# rpm-ostree upgrades
 mkdir -p /etc/systemd/system/rpm-ostreed.service.d
 cat > /etc/systemd/system/rpm-ostreed.service.d/99-proxy.conf << EOF
 [Service]
 EnvironmentFile=/etc/proxy.env
 EOF
 
-# rpm-ostree-countme service
 mkdir -p /etc/systemd/system/rpm-ostree-countme.service.d
 cat > /etc/systemd/system/rpm-ostree-countme.service.d/99-proxy.conf << EOF
 [Service]
 EnvironmentFile=/etc/proxy.env
 EOF
 
-# fwupd-refresh service
 mkdir -p /etc/systemd/system/fwupd-refresh.service.d
 cat > /etc/systemd/system/fwupd-refresh.service.d/99-proxy.conf << EOF
 [Service]
@@ -102,10 +118,10 @@ EnvironmentFile=/etc/proxy.env
 EOF
 
 systemctl daemon-reload
-systemctl restart rpm-ostreed.service rpm-ostree-countme fwupd-refresh.service
+systemctl restart rpm-ostreed.service rpm-ostree-countme.service fwupd-refresh.service
 ```
 
-and set it for the bash console, too:
+And set the proxy for the user session, too:
 
 ```bash
 sudo -i
@@ -118,29 +134,48 @@ set +a
 EOF
 ```
 
-Upgrade the server now:
+## Upgrade the server to the latest image
 
-```bash
-rpm-ostree upgrade
-```
-
-Install cockpit and some other tools:
+If the network setup was successful, you can upgrade your server:
 
 ```bash
 sudo -i
-rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils rsync
+rpm-ostree upgrade
 systemctl reboot
 ```
 
-after the reboot, enable cockpit:
+## Install some additional tools
+
+Install the cockpit management dashboard and some other tools:
+
+```bash
+sudo -i
+rpm-ostree install cockpit-system cockpit-ws cockpit-files cockpit-networkmanager cockpit-ostree cockpit-podman cockpit-selinux cockpit-storaged nano git bind-utils rsync httpd-tools
+systemctl reboot
+```
+
+After the reboot, enable the cockpit service:
 
 ```bash
 sudo systemctl enable --now cockpit.socket
-sudo firewall-cmd --add-service=cockpit
 sudo firewall-cmd --add-service=cockpit --permanent
 ```
 
-## Apply required sysctl settings
+## If desired, install virtualization support to your server
+
+```bash
+sudo -i
+rpm-ostree install cockpit-machines libvirt-daemon-config-network libvirt-daemon-kvm qemu-kvm virt-install
+systemctl reboot
+```
+
+After the reboot, enable the libvirt service:
+
+```bash
+sudo systemctl enable --now libvirtd
+```
+
+## Allow user opening of privileged ports
 
 Edit `/etc/sysctl.conf`:
 
@@ -172,7 +207,7 @@ sudo firewall-cmd --permanent --zone=public --add-service=https
 sudo firewall-cmd --reload
 ```
 
-## Enable `linger` for the `admin` user
+## Allow user services automatic run without login
 
 This allows the user’s systemd services to run at boot without needing an interactive login:
 
@@ -180,7 +215,7 @@ This allows the user’s systemd services to run at boot without needing an inte
 sudo loginctl enable-linger admin
 ```
 
-## Clone the `apps-deployment` repository
+## Clone the `apps-deployment` repository locally
 
 Log as the `admin` user, and run:
 
@@ -212,14 +247,14 @@ From inside the repo (`~/apps-deployment`), run:
 ./install.sh
 ```
 
-The local deployment directories are:
+The contents are deployed to the following local directories:
 
-~/apps-config/
-~/apps-secrets/
-~/apps-persist/
-~/.config/containers/systemd/
+- `~/apps-config`: a link to the config directory;
+- `~/apps-secrets/`: directory containing you secret environment;
+- `~/apps-persist/`: directory for your apps data;
+- `~/.config/containers/systemd/`: the directory for Podman quadlets.
 
-## Configure secrets
+## Customize your secret environment
 
 Edit the secrets file:
 
@@ -233,45 +268,61 @@ Set at least:
 DOMAIN=example.com
 ```
 
-Adjust any other variables your quadlets require (OIDC, passwords, tokens, etc.).
+Adjust any other variables your quadlets require (OIDC, passwords, tokens, ...).
 
 Keep this file **private**, the installer sets permissions to `0600`.
 
 ## Reboot
 
-Reboot the server to validate boot-time behavior (linger + user services):
+Only after setting your secrets, reboot the server to start your services:
 
 ```bash
 sudo systemctl reboot
 ```
 
-After reboot, you do not need to log in to start services, because linger is enabled.
+## Verify acces to the services
 
-## Init minio bucket
+All the services should now be working and reachable,
+except for Grist, that needs further configuration.
 
-Run the `~/apps-deployment/tools/apps-init-bucket.sh` script.
-
-The script is going read the following variables from your `apps-secret.env` file:
-ADMIN_EMAIL, DEFAULT_PASSWORD, MINIO_DEFAULT_BUCKET
-
-Reboot the server to check the services are ok:
-
-```bash
-sudo systemctl reboot
-```
-
-## Verify access
-
-From a client machine, open:
+From a client machine, open to check the services:
 
 * `https://apps.example.com`
-* `https://grist.example.com`
-* `https://dex.example.com`
+* `https://dex.example.com/.well-known/openid-configuration`
 * `https://n8n.example.com`
 * `https://minio.example.com`
 
 > If you use Caddy internal/self-signed TLS, you may need to trust its root CA on your client devices
 > (depending on how your deployment is configured).
+
+## Init a new MinIO bucket for Grist
+
+Run this script:
+
+```bash
+~/apps-deployment/tools/apps-init-bucket.sh
+```
+
+The script is going read the following variables from your `apps-secret.env` file:
+`ADMIN_EMAIL`, `DEFAULT_PASSWORD`, `MINIO_DEFAULT_BUCKET`
+
+Reboot the server to restart all services:
+
+```bash
+sudo systemctl reboot
+```
+
+## Verify access to Grist
+
+From a client machine, open:
+
+* `https://grist.example.com`
+
+> If you use Caddy internal/self-signed TLS, you may need to trust its root CA on your client devices
+> (depending on how your deployment is configured).
+
+At this point, your server should be ready to go.
+
 
 ## Use the tools to manage quadlets
 
